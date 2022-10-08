@@ -76,6 +76,14 @@ class LaserCA:
         self.c_next = np.zeros((self.n, self.n), dtype=np.int8) # number of photons in cell i at time step t + 1
         self.c_tilde = np.zeros((self.n, self.n, self.max_photons), dtype=np.int8) # the amount of time since a photon j was created at node i
 
+        # initialize some noise photons
+        rand_x_idx = np.random.choice(self.n, int(0.1 * self.n * self.n))
+        rand_y_idx = np.random.choice(self.n, int(0.1 * self.n * self.n))
+        for x, y in zip(rand_x_idx, rand_y_idx):
+            self.c_cur[x][y] = np.random.randint(1, self.max_photons)
+            for photon in range(self.c_cur[x][y]):
+                self.c_tilde[x][y][photon] = np.random.randint(1, self.photon_lifetime)
+
         # step variable
         self.step = 0
 

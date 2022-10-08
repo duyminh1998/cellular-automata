@@ -1,7 +1,7 @@
 from lasers import LaserCA
 from lib import pycxsimulator
 
-n = 10
+n = 100
 pumping_probability = 0.01
 photon_lifetime = 14
 electron_lifetime = 160
