@@ -20,8 +20,10 @@ class LaserCA:
     electron_lifetime:int=160,
     max_photons:int=45000,
     threshold_delta:float=1.0,
+    percent_random_excitation:float=0.0001,
     n_type:str='moore', 
     boundary_cond:str='periodic', 
+    update_stats:bool=False,
     rd_seed=None) -> None:
         """
         Description:
@@ -34,8 +36,10 @@ class LaserCA:
             electron_lifetime: the maximum lifetime of an electron.
             max_photons: the maximum number of photons in a cell.
             threshold_delta: the threshold to compare the number of photons in the neighborhood.
+            percent_random_excitation: percentage of cells to randomly excite.
             n_type: the type of neighborhood. Currently supports 'moore' and 'neumann'.
             boundary_cond: the boundary conditions. Currenty supports 'cut-off' and 'periodic'.
+            update_stats: whether or not to save population statistics at each iteration.
             rd_seed: a random seed to pass to the random number generator. Used to reproduce specific initial configurations.
 
         Return:
@@ -51,10 +55,18 @@ class LaserCA:
         self.electron_lifetime = electron_lifetime
         self.max_photons = max_photons
         self.threshold_delta = threshold_delta
+        self.percent_random_excitation_cells = int(percent_random_excitation * n * n)
         self.n_type = n_type
         self.boundary_cond = boundary_cond
+        self.update_stats = update_stats
+        self.n_pop = 0
+        self.N_pop = 0
+        if n_type == 'moore':
+            self.delta = [(0, 1), (1, 0), (1, 1), (0, -1), (-1, 0), (-1, -1), (1, -1), (-1, 1)]
+        elif n_type == 'neumann':
+            self.delta = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
-        # self.cmap = matplotlib.colors.ListedColormap(['white', 'red', 'blue']) # used to configure the colors of the CA
+        self.cmap = matplotlib.colors.ListedColormap(['black', 'gray', 'white']) # used to configure the colors of the CA
 
     def initialize(self) -> None:
         """
@@ -74,15 +86,20 @@ class LaserCA:
 
         self.c_cur = np.zeros((self.n, self.n), dtype=np.int8) # number of photons in cell i at time step t
         self.c_next = np.zeros((self.n, self.n), dtype=np.int8) # number of photons in cell i at time step t + 1
-        self.c_tilde = np.zeros((self.n, self.n, self.max_photons), dtype=np.int8) # the amount of time since a photon j was created at node i
+        # self.c_tilde = np.zeros((self.n, self.n, self.max_photons), dtype=np.int8) # the amount of time since a photon j was created at node i
+        self.c_tilde = [] # the amount of time since a photon j was created at node i
+        for x in range(self.n):
+            self.c_tilde.append([])
+            for y in range(self.n):
+                self.c_tilde[x].append([])
 
         # initialize some noise photons
-        rand_x_idx = np.random.choice(self.n, int(0.1 * self.n * self.n))
-        rand_y_idx = np.random.choice(self.n, int(0.1 * self.n * self.n))
-        for x, y in zip(rand_x_idx, rand_y_idx):
-            self.c_cur[x][y] = np.random.randint(1, self.max_photons)
-            for photon in range(self.c_cur[x][y]):
-                self.c_tilde[x][y][photon] = np.random.randint(1, self.photon_lifetime)
+        # rand_x_idx = np.random.choice(self.n, int(0.1 * self.n * self.n))
+        # rand_y_idx = np.random.choice(self.n, int(0.1 * self.n * self.n))
+        # for x, y in zip(rand_x_idx, rand_y_idx):
+        #     self.c_cur[x][y] = np.random.randint(1, self.max_photons)
+        #     for photon in range(self.c_cur[x][y]):
+        #         self.c_tilde[x][y][photon] = np.random.randint(1, self.photon_lifetime)
 
         # step variable
         self.step = 0
@@ -99,7 +116,8 @@ class LaserCA:
             (None)
         """        
         plt.cla()
-        im2 = plt.imshow(self.c_cur, vmin=0, vmax=2, cmap=plt.cm.binary)
+        # im2 = plt.imshow(self.c_cur, vmin=0, vmax=2, cmap=plt.cm.binary)
+        im2 = plt.imshow(self.c_cur, cmap=self.cmap)
         plt.title("Lasers Cellular Automata \nStep = {}".format(self.step))
         # ax = plt.gca()
         # ax.set_xticks(np.arange(0, self.n, 1))
@@ -122,19 +140,17 @@ class LaserCA:
             (int) the photon count in the neighborhood.
         """
         neighbor_photons = 0
-        if n_type == 'moore':
-            delta = [(0, 1), (1, 0), (1, 1), (0, -1), (-1, 0), (-1, -1), (1, -1), (-1, 1)]
-        elif n_type == 'neumann':
-            delta = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        for dx, dy in delta:
-                neighbor = None
-                if boundary_cond == 'periodic':
-                    neighbor = ((x + dx) % self.n, (y + dy) % self.n)
-                elif boundary_cond == 'cut-off':
-                    if not (x + dx >= self.n or x + dx < 0 or y + dy >= self.n or y + dy < 0):
-                        neighbor = (x + dx, y + dy)
-                if neighbor:
-                    neighbor_photons += self.c_cur[neighbor[0]][neighbor[1]]
+        for dx, dy in self.delta:
+            neighbor = None
+            if boundary_cond == 'periodic':
+                neighbor = ((x + dx) % self.n, (y + dy) % self.n)
+            elif boundary_cond == 'cut-off':
+                if not (x + dx >= self.n or x + dx < 0 or y + dy >= self.n or y + dy < 0):
+                    neighbor = (x + dx, y + dy)
+            if neighbor:
+                neighbor_photons += self.c_cur[neighbor[0]][neighbor[1]]
+                if neighbor_photons > self.threshold_delta: # premature return once we exceed threshold
+                    return neighbor_photons
         return neighbor_photons
 
     def update(self) -> None:
@@ -151,106 +167,209 @@ class LaserCA:
         # update time step t + 1
         self.a_next = self.a_cur
         self.c_next = self.c_cur
+        # get a random number of cells to random add noise photons
+        rand_locs = [(x, y) for x, y in zip(np.random.choice(self.n, self.percent_random_excitation_cells), np.random.choice(self.n, self.percent_random_excitation_cells))]
+        for x, y in rand_locs:
+            # randomly add noise photon
+            if self.c_cur[x][y] < self.max_photons:
+                self.c_next[x][y] = self.c_cur[x][y] + 1
+                 # after a photon has been created, we must increment its lifetime
+                self.c_tilde[x][y].append(0)
         # loop through each cell
         for x in range(self.n):
             for y in range(self.n):
-                # flag to denote whether new photon was created
-                photon_created = False
                 # fire the pumping process with probability lambda
                 if self.a_cur[x][y] == 0:
                     if rd.random() < self.pumping_probability:
-                        self.a_next[x][y] == 1
+                        self.a_next[x][y] = 1
                 # stimulated emission
                 else:
                     num_photons_in_neighborhood = self.get_neighbor_photons(x, y, self.n_type, self.boundary_cond)
+                    # if there is a sufficient number of photons in the neighborhood
                     if num_photons_in_neighborhood > self.threshold_delta:
-                        self.c_next[x][y] = self.c_cur[x][y] + 1
                         self.a_next[x][y] = 0
-                        # after a photon has been created, we must increment its lifetime
-                        for photon_idx, photon in enumerate(self.c_tilde[x][y]):
-                            if photon == 0:
-                                self.c_tilde[x][y][photon_idx] = 1
-                                photon_created = photon_idx
-                                break
-                # photon decay
-                if self.c_cur[x][y] > 0:
-                    # check whether a photon in the cell has reached its lifetime
-                    for photon_idx, photon in enumerate(self.c_tilde[x][y]):
-                        if photon >= self.photon_lifetime:
-                            self.c_next[x][y] = self.c_cur[x][y] - 1
-                            self.c_tilde[x][y][photon_idx] = 0
-                            break
+                        # add a photon
+                        if self.c_cur[x][y] < self.max_photons:
+                            self.c_next[x][y] = self.c_cur[x][y] + 1
+                            # after a photon has been created, we must increment its lifetime
+                            self.c_tilde[x][y].append(0)
                 # electron decay
                 if self.a_cur[x][y] == 1:
                     # check whether an electron in the cell has reached its lifetime
                     if self.a_tilde[x][y] >= self.electron_lifetime:
-                        self.a_next = 0
+                        self.a_next[x][y] = 0
                     else: # increment the electron lifetime
-                        self.a_tilde[x][y] = self.a_tilde[x][y] + 1
+                        self.a_tilde[x][y] += 1
                 # update the photon lifetimes
-                for photon_idx, photon in enumerate(self.c_tilde[x][y]):
-                    if photon > 0:
-                        if photon_created:
-                            if photon_idx != photon_created:
-                                self.c_tilde[x][y][photon_idx] = self.c_tilde[x][y][photon_idx] + 1
+                if self.c_cur[x][y] > 0:
+                    # increment photon lifetime
+                    for photon_idx in range(self.c_cur[x][y]):
+                        self.c_tilde[x][y][photon_idx] += 1
+                    # photon decay
+                    photon_idx = 0
+                    while photon_idx < len(self.c_tilde[x][y]):
+                        if self.c_tilde[x][y][photon_idx] >= self.photon_lifetime:
+                            del self.c_tilde[x][y][photon_idx]
+                            self.c_next[x][y] -= 1
                         else:
-                            self.c_tilde[x][y][photon_idx] = self.c_tilde[x][y][photon_idx] + 1
+                            photon_idx += 1
                 
         # step the config forward
         self.a_cur = self.a_next
         self.c_cur = self.c_next
         self.step = self.step + 1
 
-def run_loop(model, hyperparams:dict, max_steps:int=300):
-    """
-    Description:
-        Run the model for a certain number of steps or until a threshold is met.
+        # update population statistics if desired
+        if self.update_stats:
+            self.n_pop = self.c_cur.sum()
+            self.N_pop = self.a_cur.sum()
 
-    Arguments:
-        model: the model to run the loop for.
-        hyperparams: the set of hyperparameters for the model.
-        max_steps: the maximum number of steps to run the model.
+if __name__ == '__main__':
+    from tqdm import tqdm
+    import numpy as np
+    import imageio
 
-    Return:
-        (tuple) the percent of panicked individuals at each time step and the final configuration
-    """
-    dim = [] # holds the dimension of the hyperparameters so we can initialize an np array
-    for param_vals in hyperparams.values():
-        dim.append(len(param_vals))
-    # empty np array to hold the results corresponding to a parameter combination
-    satisfaction_results = np.empty((dim))
-    seg_results = np.empty((dim))
-    last_ns = np.empty((dim))
-    # loop through every parameter combination and find the best one
-    try:
-        for idx, _ in np.ndenumerate(satisfaction_results):
-            # get the current combination of parameters
-            cur_args_list = []
-            for cur_param, param_key in zip(idx, hyperparams.keys()):
-                # print(param_key, hyperparams[param_key][cur_param])
-                cur_args_list.append(hyperparams[param_key][cur_param])
-            print("Current args: {}".format(cur_args_list))
+    def create_image(model, t:int) -> tuple:
+        # Source: https://pnavaro.github.io/python-fortran/06.gray-scott-model.html
+        for t in range(t):
+            model.update()
+        c = np.uint8(255 * (model.c_cur - model.c_cur.min()) / (model.c_cur.max() - model.c_cur.min()))
+        return c, model
 
-            # initialize configuration
-            model = model(*cur_args_list)
-            model.initialize()
+    def create_frames(n, model, t:int) -> list:
+        # Source: https://pnavaro.github.io/python-fortran/06.gray-scott-model.html
+        c_frames = []
+        for _ in tqdm(range(n)):
+            c, model = create_image(model, t)
+            c_frames.append(c)
+        return c_frames
 
-            # update config until satisfaction == 100% or max_steps
-            step = 0
-            perc_satisfied = model.sum_satisfaction() / model.total_agents
-            while (perc_satisfied) < 1 and step < max_steps:
-                model.update()
+    n = 300
+    pumping_probability = 0.1
+    photon_lifetime = 8
+    electron_lifetime = 30
+    max_photons = 20
+    threshold_delta = 1.0
+    percent_random_excitation = 0.0001
+    n_type = 'moore'
+    boundary_cond = 'periodic'
+    update_stats = False
+    r_seed = 42
 
-                # update step params
-                perc_satisfied = model.sum_satisfaction() / model.total_agents
-                step += 1
-            
-            final_satisfaction = model.sum_satisfaction() / model.total_agents
-            final_segregation = model.get_metrics('interface density')
-            print("Final percent of satisfied: {}, Final percent of segregation: {}".format(final_satisfaction * 100, final_segregation * 100))
-            satisfaction_results[idx] = final_satisfaction
-            seg_results[idx] = final_segregation
-            last_ns[idx] = step
-    except KeyboardInterrupt:
-        return satisfaction_results, seg_results, last_ns
-    return satisfaction_results, seg_results, last_ns
+    # choose test type
+    test = 0
+
+    if test > 0:
+        update_stats = True
+
+    # initialize the model
+    model = LaserCA(n, pumping_probability, photon_lifetime, electron_lifetime, max_photons, threshold_delta, percent_random_excitation, n_type, boundary_cond, update_stats, r_seed)
+    model.initialize()
+    
+    # create gifs
+    if test == 0:
+        # update config until max_steps
+        frames = 400
+        steps_per_frame = 1
+        c_frames = create_frames(frames, model, steps_per_frame)
+
+        file_name = 'n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}_id_{:.3f}.gif'.format(n, frames, model.pumping_probability, model.electron_lifetime, model.photon_lifetime, rd.random())
+        gif_path = "C:\\Users\\minhh\\Documents\\JHU\\Fall 2022\\Independent Study\\src\\output\\lasers\\img\\"
+        imageio.mimsave(gif_path + file_name, c_frames, format='gif', fps=15)
+    # generate data and plot time series
+    elif test == 1:
+        max_t = 50
+        t = [i for i in range(max_t)]
+        n_pop = []
+        N_pop = []
+
+        # evolve the model
+        for _ in tqdm(t):
+            model.update()
+            n_pop.append(model.n_pop)
+            N_pop.append(model.N_pop)
+
+        plt.scatter(t, n_pop, label='$n(t)$', marker = 'x')
+        plt.scatter(t, N_pop, label='$N(t)$', marker = '+')
+        plt.legend(loc='best')
+        plt.xlabel('$t$')
+        plt.title('Time series for $n(t)$ and $N(t)$ \n$R$={:.2f}, $\\tau_c$={:.2f}, $\\tau_a$={:.2f}'.format(model.pumping_probability, model.photon_lifetime, model.electron_lifetime))
+        plt.grid()
+        plt.show()
+    # generate data and plot 2D phase plane
+    elif test == 2:
+        max_t = 100
+        t = [i for i in range(max_t)]
+        n_pop = []
+        N_pop = []
+
+        # evolve the model
+        for _ in range(t):
+            model.update()
+            n_pop.append(model.n_pop)
+            N_pop.append(model.N_pop)
+
+        plt.scatter(N_pop, n_pop, marker = '+')
+        plt.xlabel('N')
+        plt.ylabel('n')
+        plt.title('2D Phase Plane \n$R$={:.2f}, $\\tau_c$={:.2f}, $\\tau_a$={:.2f}'.format(model.pumping_probability, model.photon_lifetime, model.electron_lifetime))
+        plt.grid()
+        plt.show()
+    # generate data only
+    elif test == 3:
+        max_t = 400
+        t = [i for i in range(max_t)]
+        n_pop = []
+        N_pop = []
+
+        # evolve the model
+        for _ in tqdm(t):
+            model.update()
+            n_pop.append(model.n_pop)
+            N_pop.append(model.N_pop)
+
+        pickle_path = "C:\\Users\\minhh\\Documents\\JHU\\Fall 2022\\Independent Study\\src\\output\\lasers\\pickle\\"
+        n_file_name = 'photons_n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}.pickle'.format(n, max_t, model.pumping_probability, model.electron_lifetime, model.photon_lifetime)
+        with open(pickle_path + n_file_name, 'wb') as fh:
+            pickle.dump(n_pop, fh)
+
+        NN_fn = 'pop_inverse_n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}.pickle'.format(n, max_t, model.pumping_probability, model.electron_lifetime, model.photon_lifetime)
+        with open(pickle_path + NN_fn, 'wb') as fh1:
+            pickle.dump(N_pop, fh1)
+    # plot time series only
+    elif test == 4:
+        max_t = 400
+        t = [i for i in range(max_t)]
+        pickle_path = "C:\\Users\\minhh\\Documents\\JHU\\Fall 2022\\Independent Study\\src\\output\\lasers\\pickle\\"
+        file_name = 'photons_n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}.pickle'.format(n, max_t, pumping_probability, electron_lifetime, photon_lifetime)
+        with open(pickle_path + file_name, 'rb') as fh:
+            n_pop = pickle.load(fh)
+        file_name = 'pop_inverse_n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}.pickle'.format(n, max_t, pumping_probability, electron_lifetime, photon_lifetime)
+        with open(pickle_path + file_name, 'rb') as fh:
+             N_pop = pickle.load(fh)
+
+        plt.scatter(t, n_pop, label='$n(t)$', marker = 'x')
+        plt.scatter(t, N_pop, label='$N(t)$', marker = '+')
+        plt.legend(loc='best')
+        plt.xlabel('$t$')
+        plt.title('Time series for $n(t)$ and $N(t)$ \n$R$={:.2f}, $\\tau_c$={:.2f}, $\\tau_a$={:.2f}'.format(model.pumping_probability, model.photon_lifetime, model.electron_lifetime))
+        plt.grid()
+        plt.show()
+    # plot 2D phase plane only
+    elif test == 5:
+        max_t = 400
+        t = [i for i in range(max_t)]
+        pickle_path = "C:\\Users\\minhh\\Documents\\JHU\\Fall 2022\\Independent Study\\src\\output\\lasers\\pickle\\"
+        file_name = 'photons_n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}.pickle'.format(n, max_t, pumping_probability, electron_lifetime, photon_lifetime)
+        with open(pickle_path + file_name, 'rb') as fh:
+            n_pop = pickle.load(fh)
+        file_name = 'pop_inverse_n_{}_t_{}_lambda_{:.2f}_tau_a_{:.2f}_tau_c_{:.2f}.pickle'.format(n, max_t, pumping_probability, electron_lifetime, photon_lifetime)
+        with open(pickle_path + file_name, 'rb') as fh:
+             N_pop = pickle.load(fh)
+
+        plt.scatter(N_pop, n_pop, marker = '+')
+        plt.xlabel('N')
+        plt.ylabel('n')
+        plt.title('2D Phase Plane \n$R$={:.2f}, $\\tau_c$={:.2f}, $\\tau_a$={:.2f}'.format(model.pumping_probability, model.photon_lifetime, model.electron_lifetime))
+        plt.grid()
+        plt.show()
