@@ -13,6 +13,8 @@ The repository contains code for those models, namely Schelling's model of segre
 
 **lib**: contains utility code as well as Hiroki Sayama's [pycxsimulator](https://github.com/hsayama/PyCX/blob/master/pycxsimulator.py).
 
+**rats-SIR**: code for CA modeling of SIR epidemic models with rats.
+
 **reaction-diffusion**: code for two reaction-diffusion models, the BZ reaction and the Gray-Scott model. Read about the Gray-Scott model [here](https://minhhua.com/ca_gray_scott/).
 
 **schelling**: code for CA modeling of Schelling's model of segregation. Read about the model [here](https://minhhua.com/ca_schelling/).
