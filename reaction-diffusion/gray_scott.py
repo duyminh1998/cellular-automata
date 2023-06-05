@@ -175,8 +175,8 @@ class NPGrayScottCA(GrayScottCA):
             (None)
         """
         # variables for CA configurations
-        u = np.ones((self.n + 2, self.n + 2), dtype=np.float)
-        v = np.zeros((self.n + 2, self.n + 2), dtype=np.float)
+        u = np.ones((self.n + 2, self.n + 2), dtype=float)
+        v = np.zeros((self.n + 2, self.n + 2), dtype=float)
         x, y = np.meshgrid(np.linspace(0, 1, self.n + 2), np.linspace(0, 1, self.n + 2))
         mask = (0.5 < x) & (x < 0.51) & (0.5 < y) & (y < 0.51)
         u[mask] = 0.5
@@ -216,7 +216,9 @@ class NPGrayScottCA(GrayScottCA):
             (np.array) the Laplacian at each point of u
         """
         # left neighbor, bottom neighbor, top neighbor, left neighbor
-        return (u[:-2, 1:-1] + u[1:-1, :-2] - 4*u[1:-1, 1:-1] + u[1:-1, 2:] + u[2:, 1:-1])
+        # return (u[:-2, 1:-1] + u[1:-1, :-2] - 4*u[1:-1, 1:-1] + u[1:-1, 2:] + u[2:, 1:-1])
+        # moore neighborhood
+        return (u[:-2, 1:-1] + u[1:-1, :-2] - 8*u[1:-1, 1:-1] + u[1:-1, 2:] + u[2:, 1:-1] + u[:-2, :-2] + u[:-2, 2:] + u[2:, :-2] + u[2:, 2:])
 
     def update(self) -> None:
         """
@@ -263,16 +265,16 @@ if __name__ == "__main__":
         out_path = "C:\\Users\\minhh\\Documents\\JHU\\Fall 2022\\Independent Study\\src\\output\\reaction-diffusion\\"
         imageio.mimsave(out_path + 'GS_n_{}_F_{}_k_{}_Du_{}_Dv_{}.gif'.format(n, F, k, Du, Dv), frames, format='gif', fps=60)
     elif out == 'batch':
-        n_frames = 300
+        n_frames = 100
         steps_per_frame = 40
-        out_path = "C:\\Users\\minhh\\Documents\\JHU\\Fall 2022\\Independent Study\\src\\output\\reaction-diffusion\\gray-scott\\single point center\\"
+        out_path = "E:\\VAULT 419\\Files\\School\\JHU Archive\\Fall 2022\\Independent Study\\src\\output\\reaction-diffusion\\"
         hyperparams = {
-            'F': np.linspace(0.03, 0.065, 8),
-            'k': np.linspace(0.055, 0.065, 3),
+            'F': np.linspace(0.08, 0.5, 10),
+            'k': np.linspace(0.01, 0.5, 10),
             'Dh': [1],
             'Dt': [1],
-            'Du': np.linspace(0.016, 0.16, 2),
-            'Dv': np.linspace(0.008, 0.08, 2),
+            'Du': np.linspace(0.016, 0.16, 4),
+            'Dv': np.linspace(0.008, 0.08, 4),
             'n': [300]
         }
         run_loop_reaction_diff_models(NPGrayScottCA, hyperparams, out_path, n_frames, steps_per_frame)

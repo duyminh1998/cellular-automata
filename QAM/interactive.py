@@ -1,17 +1,52 @@
-from qam import QAMCA
+from qam import *
 from lib import pycxsimulator
 
-n = 4
-constellation_type = 'square'
-percent_satisfied_agents = 0.7838
-random_swap_every = 5
-random_swap_n_agents = 16
-tolerance = 0.5
+n = 5
+# prev_rails = None
+# prev_rails = [
+#     [[0, 0, 0, 0],
+#     [0, 0, 0, 0],
+#     [1, 1, 1, 1],
+#     [1, 1, 1, 1]]
+# ]
+prev_rails = [
+    [[0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [1, 1, 1, 1],
+    [1, 1, 1, 1]],
+    [[0, 0, 1, 1],
+    [0, 0, 1, 1], 
+    [0, 0, 1, 1],
+    [0, 0, 1, 1]]
+]
+prev_rails = [
+    [[0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [1, 1, 1, 1],
+    [1, 1, 1, 1]],
+    [[0, 0, 1, 1],
+    [0, 0, 1, 1], 
+    [0, 0, 1, 1],
+    [0, 0, 1, 1]],
+    [[0, 0, 0, 0],
+    [1, 1, 1, 1], 
+    [1, 1, 1, 1], 
+    [0, 0, 0, 0]]
+]
+prev_rails = [
+    [[2, 0, 0, 1, 1, 2],
+    [0, 0, 0, 1, 1, 1],
+    [0, 0, 0, 1, 1, 1],
+    [0, 0, 0, 1, 1, 1],
+    [0, 0, 0, 1, 1, 1],
+    [2, 0, 0, 1, 1, 2]]
+]
+convergence_steps = 10
+tolerance = 1.0
 initial_ratio = 0.5
-empty_perc = 0
 n_type = 'moore'
 boundary_cond = 'cut-off'
 r_seed = 42
-model = QAMCA(n, constellation_type, percent_satisfied_agents, random_swap_every, random_swap_n_agents, tolerance, initial_ratio, empty_perc, n_type, boundary_cond, r_seed)
+model = SAHCQAMCA(n, prev_rails, convergence_steps, tolerance, initial_ratio, n_type, boundary_cond, r_seed, print_debug = True)
 
 pycxsimulator.GUI().start(func=[model.initialize, model.observe, model.update])

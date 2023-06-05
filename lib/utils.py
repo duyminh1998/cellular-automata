@@ -58,13 +58,14 @@ def run_loop_reaction_diff_models(base_model, hyperparams:dict, gif_path:str, fr
 
         # update config until max_steps
         U_frames, V_frames = create_frames(frames, model, steps_per_frame)
+        fps = 1000 / 60
         if model.name == 'GS':
-            file_name = '{}_n_{}_F_{}_k_{}_Du_{}_Dv_{}_U.gif'.format(model.name, model.n, model.F, model.k, model.Du, model.Dv)
-            imageio.mimsave(gif_path + file_name, U_frames, format='gif', fps=60)
+            # file_name = '{}_n_{}_F_{}_k_{}_Du_{}_Dv_{}_U.gif'.format(model.name, model.n, model.F, model.k, model.Du, model.Dv)
+            # imageio.mimsave(gif_path + file_name, U_frames, format='gif', duration=fps)
             file_name = '{}_n_{}_F_{}_k_{}_Du_{}_Dv_{}_V.gif'.format(model.name, model.n, model.F, model.k, model.Du, model.Dv)
-            imageio.mimsave(gif_path + file_name, V_frames, format='gif', fps=60)
+            imageio.mimsave(gif_path + file_name, V_frames, format='gif', duration=fps)
         elif model.name == 'BZ':
             file_name = '{}_n_{}_e_{}_q_{}_f_{}_Du_{}_Dv_{}_U.gif'.format(model.name, model.n, model.epsilon, model.q, model.f, model.Du, model.Dv)
-            imageio.mimsave(gif_path + file_name, U_frames, format='gif', fps=60)
+            imageio.mimsave(gif_path + file_name, U_frames, format='gif', duration=fps)
             file_name = '{}_n_{}_e_{}_q_{}_f_{}_Du_{}_Dv_{}_V.gif'.format(model.name, model.n, model.epsilon, model.q, model.f, model.Du, model.Dv)
-            imageio.mimsave(gif_path + file_name, V_frames, format='gif', fps=60)
+            imageio.mimsave(gif_path + file_name, V_frames, format='gif', duration=fps)
